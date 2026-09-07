@@ -1,0 +1,27 @@
+{
+  "name": "segrego-smart-waste-platform",
+  "version": "1.0.0",
+  "description": "SEGREGO – AI-Powered Smart Waste Segregation & Sustainable Waste Management Platform",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install --prefix server && npm install --prefix client",
+    "build": "cd client && npm install && npm run build",
+    "start": "cd server && npm start",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "ai",
+    "waste-management",
+    "smart-city",
+    "iot",
+    "segregation",
+    "recycling",
+    "mern"
+  ],
+  "author": "SEGREGO",
+  "license": "MIT"
+}
