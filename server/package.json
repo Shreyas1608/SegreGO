@@ -1,5 +1,5 @@
 {
-  "name": "ecosort-ai-server",
+  "name": "segrego-server",
   "version": "0.1.0",
   "private": true,
   "main": "src/server.js",
