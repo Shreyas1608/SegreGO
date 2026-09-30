@@ -15,6 +15,9 @@ const complaintSchema = new mongoose.Schema(
     location: { type: String },
     coordinates: { lat: Number, lng: Number },
     imageUrl: { type: String },
+    assignedOfficer: { type: String, default: 'Unassigned' },
+    resolutionNote: { type: String, default: '' },
+    resolvedAt: { type: Date },
   },
   { timestamps: true }
 );

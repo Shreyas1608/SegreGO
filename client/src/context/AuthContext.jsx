@@ -47,6 +47,16 @@ export const AuthProvider = ({ children }) => {
     return userData;
   };
 
+  const switchUserRole = async () => {
+    const res = await authAPI.switchRole();
+    const { token: authToken, user: userData } = res.data;
+    localStorage.setItem('token', authToken);
+    localStorage.setItem('user', JSON.stringify(userData));
+    setToken(authToken);
+    setUser(userData);
+    return userData;
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -63,7 +73,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, isAuthenticated: !!user, login, register, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, token, loading, isAuthenticated: !!user, login, register, logout, updateUser, switchUserRole }}>
       {children}
     </AuthContext.Provider>
   );

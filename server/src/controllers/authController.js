@@ -37,7 +37,7 @@ exports.login = async (req, res, next) => {
     if (!user) return res.status(401).json({ message: 'Invalid credentials' });
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(401).json({ message: 'Invalid credentials' });
-    // Update streak
+
     const now = new Date();
     const last = new Date(user.lastActiveDate);
     const daysDiff = Math.floor((now - last) / (1000 * 60 * 60 * 24));
@@ -59,5 +59,55 @@ exports.getMe = async (req, res, next) => {
     const user = await User.findById(req.user._id).select('-password');
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json(user);
+  } catch (err) { next(err); }
+};
+
+// 1-Click Role Switch for Demo Testing
+exports.switchRole = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    user.role = user.role === 'admin' ? 'citizen' : 'admin';
+    await user.save();
+    const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({
+      message: `Role switched to ${user.role}`,
+      token,
+      user: { id: user._id, name: user.name, email: user.email, role: user.role, points: user.points, level: user.level },
+    });
+  } catch (err) { next(err); }
+};
+
+exports.getAllUsers = async (req, res, next) => {
+  try {
+    const users = await User.find().select('-password').sort({ createdAt: -1 });
+    res.json(users);
+  } catch (err) { next(err); }
+};
+
+exports.updateUserRole = async (req, res, next) => {
+  try {
+    const { role } = req.body;
+    if (!['citizen', 'admin'].includes(role)) return res.status(400).json({ message: 'Invalid role' });
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    user.role = role;
+    await user.save();
+    res.json({ message: `Role updated to ${role}`, user: { id: user._id, name: user.name, role: user.role } });
+  } catch (err) { next(err); }
+};
+
+exports.adjustUserPoints = async (req, res, next) => {
+  try {
+    const { pointsDelta } = req.body;
+    if (typeof pointsDelta !== 'number') return res.status(400).json({ message: 'pointsDelta must be a number' });
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    user.points = Math.max(0, user.points + pointsDelta);
+    user.level = getLevel(user.points);
+    await user.save();
+
+    res.json({ message: `Points updated by ${pointsDelta}`, user: { id: user._id, name: user.name, points: user.points, level: user.level } });
   } catch (err) { next(err); }
 };

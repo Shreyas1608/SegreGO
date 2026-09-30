@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { scanAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { analyzeImagePixels } from '../utils/imageClassifier';
+import { classifyWasteImage } from '../utils/imageClassifier';
 
 const WASTE_TAGS = [
   { label: '🥗 Wet / Food Waste', value: 'Biodegradable' },
@@ -57,17 +57,20 @@ export default function AIDetect() {
     setVisualResult(null);
     setAnalyzingVisual(true);
 
-    // Run client-side computer vision pixel analysis
+    // Run TensorFlow.js MobileNet AI classification on client
     const img = new Image();
     img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      const visual = analyzeImagePixels(img);
-      setVisualResult(visual);
-      setAnalyzingVisual(false);
-
-      // Pre-select visual category
-      if (visual && visual.category) {
-        setUserTag(visual.category);
+    img.onload = async () => {
+      try {
+        const visual = await classifyWasteImage(img);
+        setVisualResult(visual);
+        if (visual && visual.category) {
+          setUserTag(visual.category);
+        }
+      } catch (err) {
+        console.warn('AI Vision error:', err);
+      } finally {
+        setAnalyzingVisual(false);
       }
     };
     img.onerror = () => {
@@ -85,25 +88,27 @@ export default function AIDetect() {
     setLoading(true);
     setError('');
 
-    // Generate unique image hash to prevent duplicates in current scan
     const imageHash = `${selectedFile.name}-${selectedFile.size}-${Date.now()}`;
 
     try {
       const payload = {
         imageHash,
-        fileName: selectedFile.name,
+        fileName: visualResult?.detectedItem ? `${visualResult.detectedItem}_${selectedFile.name}` : selectedFile.name,
         userTag: userTag || undefined,
         visualCategory: visualResult?.category || undefined,
         visualConfidence: visualResult?.confidence || undefined,
-        visualStats: visualResult ? {
-          organicPercent: visualResult.organicPercent,
-          plasticPercent: visualResult.plasticPercent,
-          avgColor: visualResult.avgColor,
-        } : undefined,
       };
 
       const res = await scanAPI.classifyWaste(payload);
-      setResult(res.data);
+      
+      // Override result fields with local TensorFlow MobileNet detection details if available
+      const mergedResult = {
+        ...res.data,
+        detectedItem: visualResult?.detectedItem || res.data.material,
+        detectionEngine: visualResult?.detectionEngine || res.data.detectionMethod,
+      };
+      
+      setResult(mergedResult);
 
       if (res.data.userPoints) {
         updateUser({ points: res.data.userPoints, level: res.data.userLevel });
@@ -134,7 +139,7 @@ export default function AIDetect() {
       <div style={{ textAlign: 'center', marginBottom: '28px' }}>
         <h1 style={{ fontSize: '2rem' }}>AI Waste Classifier 🤖</h1>
         <p style={{ color: 'var(--text-muted)', marginTop: '8px', fontSize: '0.95rem' }}>
-          Computer vision detection for Wet Waste, Recyclables, Plastic, Paper, Glass, and E-Waste.
+          Zero-cost TensorFlow.js MobileNet object vision classifier for Bengaluru waste segregation.
         </p>
       </div>
 
@@ -180,9 +185,9 @@ export default function AIDetect() {
           ) : (
             <div>
               <div style={{ fontSize: '3rem', marginBottom: '8px' }}>📸</div>
-              <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>Click or Drag Image Here to Scan</div>
+              <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>Click or Drag Waste Image Here</div>
               <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '6px' }}>
-                Supports wet waste, plastic bottles, paper, cans, e-waste, and more
+                Detects plastic bottles, aluminum cans, cardboard, food waste, electronics & batteries
               </div>
             </div>
           )}
@@ -191,7 +196,7 @@ export default function AIDetect() {
         {/* VISUAL ANALYSIS BADGE */}
         {analyzingVisual && (
           <div style={{ marginTop: '12px', padding: '10px', background: '#f0fdf4', borderRadius: '8px', fontSize: '0.85rem', color: '#15803d', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>🔍</span> Running visual pixel inspection...
+            <span>🧠</span> Running local TensorFlow.js MobileNet AI Vision...
           </div>
         )}
 
@@ -209,32 +214,22 @@ export default function AIDetect() {
             gap: '8px'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '1.3rem' }}>
-                {visualResult.category === 'Biodegradable' ? '🥗' : visualResult.category === 'Plastic' ? '🥤' : '📦'}
+              <span style={{ fontSize: '1.4rem' }}>
+                {visualResult.category === 'Biodegradable' ? '🥗' : visualResult.category === 'Plastic' ? '🥤' : visualResult.category === 'Metal' ? '🥫' : '📦'}
               </span>
               <div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>
-                  Computer Vision Detection
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>
+                  {visualResult.detectionEngine || 'TensorFlow.js MobileNet AI'}
                 </div>
-                <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>
-                  {visualResult.category === 'Biodegradable' ? 'Wet / Organic Waste' : visualResult.category}
+                <div style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--text-main)' }}>
+                  Detected: {visualResult.detectedItem || visualResult.category}
                 </div>
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{
-                width: '20px',
-                height: '20px',
-                borderRadius: '50%',
-                background: visualResult.avgColor,
-                border: '1px solid #cbd5e1',
-                title: 'Dominant Color'
-              }} />
-              <span className="badge badge-success" style={{ fontSize: '0.75rem' }}>
-                {Math.round(visualResult.confidence * 100)}% Match
-              </span>
-            </div>
+            <span className="badge badge-success" style={{ fontSize: '0.8rem' }}>
+              {Math.round((visualResult.confidence || 0.9) * 100)}% Match
+            </span>
           </div>
         )}
 
@@ -242,7 +237,7 @@ export default function AIDetect() {
         {selectedFile && (
           <div style={{ marginTop: '16px' }}>
             <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '8px' }}>
-              Confirm or select category:
+              Confirm or adjust category tag:
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
               {WASTE_TAGS.map((t) => {
@@ -287,7 +282,7 @@ export default function AIDetect() {
             className="btn btn-primary"
             style={{ width: '100%', marginTop: '20px', padding: '14px', fontSize: '1.05rem', borderRadius: '10px' }}
           >
-            {loading ? 'Analyzing & Verifying Waste...' : '🔍 Classify Waste'}
+            {loading ? 'Analyzing & Verifying Waste...' : '🔍 Classify Waste & Earn Points'}
           </button>
         )}
       </div>
@@ -308,7 +303,7 @@ export default function AIDetect() {
                 {result.category === 'Biodegradable' ? '🟢 Wet Waste (Biodegradable)' : result.category}
               </span>
               <span style={{ fontSize: '0.75rem', background: '#f1f5f9', padding: '3px 8px', borderRadius: '6px', color: 'var(--text-muted)' }}>
-                {result.detectionMethod}
+                {result.detectionEngine || result.detectionMethod}
               </span>
             </div>
 
@@ -317,7 +312,7 @@ export default function AIDetect() {
             </span>
           </div>
 
-          <h2 style={{ fontSize: '1.4rem', marginBottom: '4px' }}>{result.material}</h2>
+          <h2 style={{ fontSize: '1.4rem', marginBottom: '4px' }}>{result.material || result.detectedItem}</h2>
 
           {/* CONFIDENCE BAR */}
           <div style={{ margin: '14px 0 20px' }}>
@@ -339,7 +334,7 @@ export default function AIDetect() {
           {/* RECOMMENDED DISPOSAL BIN */}
           <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
             <div style={{ color: 'var(--primary-teal)', fontWeight: 700, fontSize: '0.85rem', marginBottom: '4px' }}>
-              📍 RECOMMENDED DISPOSAL
+              📍 RECOMMENDED MUNICIPAL DISPOSAL
             </div>
             <div style={{ fontWeight: 800, fontSize: '1.15rem', marginBottom: '6px' }}>
               {result.recommendedBin}
@@ -360,21 +355,21 @@ export default function AIDetect() {
         </div>
       )}
 
-      {/* QUICK REFERENCE BINS */}
+      {/* BENGALURU QUICK SEGREGATION GUIDE */}
       <div className="glass-card">
-        <h3 style={{ fontSize: '1rem', marginBottom: '12px' }}>Municipal Color-Coded Segregation Guide</h3>
+        <h3 style={{ fontSize: '1rem', marginBottom: '12px' }}>BBMP Bengaluru Municipal Bin Color Guide</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
           <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '10px', borderRadius: '8px' }}>
-            <div style={{ fontWeight: 700, color: '#15803d', fontSize: '0.85rem' }}>🟢 Green Bin</div>
-            <div style={{ fontSize: '0.75rem', color: '#166534', marginTop: '2px' }}>Food waste, vegetable/fruit peels, tea leaves, leftovers, garden waste</div>
+            <div style={{ fontWeight: 700, color: '#15803d', fontSize: '0.85rem' }}>🟢 Green Bin (Wet)</div>
+            <div style={{ fontSize: '0.75rem', color: '#166534', marginTop: '2px' }}>Food waste, vegetable/fruit peels, tea leaves, garden waste</div>
           </div>
           <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: '10px', borderRadius: '8px' }}>
-            <div style={{ fontWeight: 700, color: '#1d4ed8', fontSize: '0.85rem' }}>🔵 Blue Bin</div>
+            <div style={{ fontWeight: 700, color: '#1d4ed8', fontSize: '0.85rem' }}>🔵 Blue Bin (Dry)</div>
             <div style={{ fontSize: '0.75rem', color: '#1e40af', marginTop: '2px' }}>Dry plastic bottles, cardboard, paper, metal cans, glass jars</div>
           </div>
           <div style={{ background: '#fef2f2', border: '1px solid #fecaca', padding: '10px', borderRadius: '8px' }}>
-            <div style={{ fontWeight: 700, color: '#b91c1c', fontSize: '0.85rem' }}>🔴 Red Bin</div>
-            <div style={{ fontSize: '0.75rem', color: '#991b1b', marginTop: '2px' }}>E-waste, electronics, batteries, toxic household chemicals, paints</div>
+            <div style={{ fontWeight: 700, color: '#b91c1c', fontSize: '0.85rem' }}>🔴 Red Bin (Hazardous)</div>
+            <div style={{ fontSize: '0.75rem', color: '#991b1b', marginTop: '2px' }}>E-waste, electronics, batteries, toxic chemicals, medicines</div>
           </div>
         </div>
       </div>

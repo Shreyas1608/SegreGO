@@ -27,6 +27,10 @@ export const authAPI = {
   login: (credentials) => api.post('/auth/login', credentials),
   register: (userData) => api.post('/auth/register', userData),
   getMe: () => api.get('/auth/me'),
+  switchRole: () => api.post('/auth/switch-role'),
+  getAllUsers: () => api.get('/auth/users'),
+  updateUserRole: (id, role) => api.put(`/auth/users/${id}/role`, { role }),
+  adjustPoints: (id, pointsDelta) => api.put(`/auth/users/${id}/points`, { pointsDelta }),
 };
 
 export const scanAPI = {
@@ -38,6 +42,9 @@ export const scanAPI = {
 export const binAPI = {
   getAllBins: () => api.get('/iot/bins'),
   getBinById: (id) => api.get(`/iot/bins/${id}`),
+  createBin: (binData) => api.post('/iot/bins', binData),
+  updateBin: (id, binData) => api.put(`/iot/bins/${id}`, binData),
+  deleteBin: (id) => api.delete(`/iot/bins/${id}`),
   simulateBinData: () => api.post('/iot/simulate'),
 };
 
@@ -45,7 +52,7 @@ export const complaintAPI = {
   createComplaint: (data) => api.post('/complaints', data),
   getMyComplaints: () => api.get('/complaints/mine'),
   getAllComplaints: () => api.get('/complaints'),
-  updateStatus: (id, status) => api.put(`/complaints/${id}/status`, { status }),
+  updateStatus: (id, data) => api.put(`/complaints/${id}/status`, typeof data === 'object' ? data : { status: data }),
 };
 
 export const collectionAPI = {
@@ -57,6 +64,10 @@ export const collectionAPI = {
 export const rewardAPI = {
   getTransactions: () => api.get('/rewards/transactions'),
   getLeaderboard: () => api.get('/rewards/leaderboard'),
+  getVouchers: () => api.get('/rewards/vouchers'),
+  createVoucher: (voucherData) => api.post('/rewards/vouchers', voucherData),
+  toggleVoucher: (id) => api.put(`/rewards/vouchers/${id}/toggle`),
+  redeemVoucher: (voucherId) => api.post('/rewards/vouchers/redeem', { voucherId }),
 };
 
 export const analyticsAPI = {
@@ -74,6 +85,9 @@ export const notificationAPI = {
 export const centerAPI = {
   getAllCenters: (type) => api.get(`/centers${type ? `?type=${type}` : ''}`),
   getCenterById: (id) => api.get(`/centers/${id}`),
+  createCenter: (centerData) => api.post('/centers', centerData),
+  updateCenter: (id, centerData) => api.put(`/centers/${id}`, centerData),
+  deleteCenter: (id) => api.delete(`/centers/${id}`),
 };
 
 export default api;
